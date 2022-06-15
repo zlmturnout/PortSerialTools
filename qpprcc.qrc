@@ -1,0 +1,19 @@
+<RCC>
+  <qresource prefix="icons">
+    <file>icons/port_ico.ico</file>
+    <file>icons/like.png</file>
+    <file>icons/ok.png</file>
+    <file>icons/arrows.gif</file>
+    <file>icons/radio.gif</file>
+    <file>icons/take_pic01.gif</file>
+    <file>icons/feather.gif</file>
+    <file>icons/random.gif</file>
+    <file>icons/quit.gif</file>
+    <file>icons/openpics.gif</file>
+    <file>icons/take_pic01.gif</file>
+    <file>icons/openpics02.gif</file>
+    <file>icons/Win01.gif</file>
+    <file>icons/pics.png</file>
+    <file>icons/Savefile01.gif</file>
+  </qresource>
+</RCC>

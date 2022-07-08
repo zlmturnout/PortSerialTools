@@ -1,11 +1,15 @@
+import re
+from this import s
 import time
 import sys, os
-from PyQt5.QtWidgets import QWidget, QPushButton, QApplication, QMainWindow, QGridLayout
-from PyQt5.QtCore import QTimer, pyqtSlot, QThread, pyqtSignal
-from PyQt5 import QtCore, QtWidgets
-from PyQt5.QtWidgets import QWidget, QPushButton, QApplication, QMainWindow, QGridLayout, QMessageBox
-from PyQt5.QtGui import QIcon
-from UI_Serial_COM_tool import Ui_MainWindow
+from numpy import save
+
+from pyparsing import col
+from PySide6.QtCore import QTimer, Slot, QThread, Signal,QSize
+from PySide6 import QtCore, QtWidgets,QtSvg
+from PySide6.QtWidgets import QWidget, QPushButton, QApplication, QMainWindow, QGridLayout, QMessageBox
+from PySide6.QtGui import QIcon,QAction,QPixmap,QPainter,QColor
+from UI.UI_Serial_COM_tool import Ui_MainWindow
 import serial, binascii, datetime
 import serial.tools.list_ports
 
@@ -20,6 +24,15 @@ STOPBITS_ONE, STOPBITS_ONE_POINT_FIVE, STOPBITS_TWO = (1, 1.5, 2)
 FIVEBITS, SIXBITS, SEVENBITS, EIGHTBITS = (5, 6, 7, 8)
 """
 
+def createPath(file_path):
+    """
+    create a given path if not exist and return it
+    :param file_path:
+    :return: file_path
+    """
+    if os.path.exists(file_path) is False:
+        os.makedirs(file_path)
+    return file_path
 
 def get_datetime():
     """ get current date time, as accurate as milliseconds
@@ -47,6 +60,31 @@ def to_log(text, filename, path):
         f.write(text + '\n')
         f.close()
 
+def SVG_ColorIcon(svg_file,img_size:QSize(48,48),color:str='#FF4470'):
+    """
+    set color for svg file and return Qicon object
+    
+    Args:
+        svg_file: svgfile
+        color: RGB color string "#FF4470"
+    Returns:
+        Qicon object
+    """
+    #svg render
+    svg_render=QtSvg.QSvgRenderer(svg_file)
+    svg_pixmap=QPixmap(img_size)
+    svg_painter=QPainter()
+    # transparent background
+    svg_pixmap.fill(QColor("white"))
+    #svg_pixmap.fill(QColor("#21C25E")) 
+    svg_painter.begin(svg_pixmap)
+    svg_painter.setCompositionMode(QPainter.CompositionMode_SourceIn)
+    svg_painter.setRenderHint(QPainter.Antialiasing and QPainter.TextAntialiasing and QPainter.SmoothPixmapTransform)
+    #svg_painter.fill(QColor(color))
+    svg_render.render(svg_painter)
+    svg_painter.end()
+    return QIcon(svg_pixmap)
+
 
 def crc16_cal(datalist):
     """
@@ -72,6 +110,11 @@ def crc16_cal(datalist):
     print(f'get crc16 modbus num: {hex(test_crc)}')
     return test_crc
 
+# save path
+data_path = os.path.join(os.getcwd(), 'data')
+createPath(data_path)
+today_folder=os.path.join(data_path,time.strftime('%Y-%m-%d', time.localtime()))
+log_path=createPath(today_folder)
 
 class Serial_COM_tool(QMainWindow, Ui_MainWindow):
     def __init__(self, parent=None):
@@ -80,6 +123,8 @@ class Serial_COM_tool(QMainWindow, Ui_MainWindow):
         self.setWindowTitle("Serial COM port tool")
         # self.setWindowIcon(QIcon('./ico/serial.png'))
         self.ini()
+        # init icons
+        self.__init__icons()
         # flag of the port status:1 open or 0 close
         self.port_status = 0
         # store COM info into a dic
@@ -95,13 +140,19 @@ class Serial_COM_tool(QMainWindow, Ui_MainWindow):
         self.timer = QTimer()
         self.timer.timeout.connect(self.data_receive)
 
+    def __init__icons(self):
+        icon_file=os.path.join(os.getcwd(),'UI\\icons\\pixiv.svg')
+        port_icon=SVG_ColorIcon(icon_file,img_size=QSize(60,60),color="#009DE0")
+        self.search_port.setIcon(port_icon)
+        self.search_port.setIconSize(QSize(30, 30))
+
     def port_show(self):
         current_port = self.COM_port.currentText()
         if current_port:
             self.COM_info.setText(self.Com_list[current_port])
             self.COM_status.setText("Ready")
 
-    @pyqtSlot()
+    @Slot()
     def on_search_port_clicked(self):
         """
         search for COM port
@@ -121,7 +172,7 @@ class Serial_COM_tool(QMainWindow, Ui_MainWindow):
         else:
             self.COM_info.setText("can not find any port!")
 
-    @pyqtSlot()
+    @Slot()
     def on_open_port_clicked(self):
         """
         open port for data transmission
@@ -146,7 +197,7 @@ class Serial_COM_tool(QMainWindow, Ui_MainWindow):
             self.COM_status.setText("Open")
             self.set_port_status(False)
 
-    @pyqtSlot()
+    @Slot()
     def on_close_port_clicked(self):
         """
         close the port
@@ -160,7 +211,7 @@ class Serial_COM_tool(QMainWindow, Ui_MainWindow):
             self.set_port_status(True)
             self.COM_status.setText("closed")
 
-    @pyqtSlot()
+    @Slot()
     def on_text_send_clicked(self):
         """
         send data by text
@@ -230,7 +281,7 @@ class Serial_COM_tool(QMainWindow, Ui_MainWindow):
         print(f'will send data: {byte_data}')
         return hex_list, byte_data
 
-    @pyqtSlot()
+    @Slot()
     def on_hex_send_clicked(self):
         """
         send data by hex mode
@@ -246,7 +297,7 @@ class Serial_COM_tool(QMainWindow, Ui_MainWindow):
         else:
             QMessageBox.information(self, "information", "Port not open", QMessageBox.Yes)
 
-    @pyqtSlot()
+    @Slot()
     def on_Add_crc16_clicked(self):
         """
         add crc16-modbus in the end
@@ -337,20 +388,23 @@ class Serial_COM_tool(QMainWindow, Ui_MainWindow):
 
         # rec_data_size = len(rec_data)
 
-    @pyqtSlot()
+    @Slot()
     def on_clear_recv_clicked(self):
         self.recv_data.setText('')
 
-    @pyqtSlot()
+    @Slot()
     def on_clear_send_clicked(self):
         self.send_data.setText('')
 
-    @pyqtSlot()
+    @Slot()
     def on_save_text_clicked(self):
         all_text = self.recv_data.toPlainText()
         if all_text != '':
-            filedir = os.getcwd()
-            to_log(all_text, 'save_recv.dat', filedir)
+            filedir = log_path
+            t_stamp = time.strftime('%Y-%m-%d-%H-%M', time.localtime())
+            self._save_N += 1
+            file_recv=f'{t_stamp}N{self._save_N}.txt'
+            to_log(all_text, file_recv, filedir)
             QMessageBox.information(self, "information", "Text saved in %s+save_recv.dat" % str(filedir),
                                     QMessageBox.Yes)
         else:
@@ -361,4 +415,4 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = Serial_COM_tool()
     window.show()
-    app.exec_()
+    app.exec()

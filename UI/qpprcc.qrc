@@ -1,0 +1,13 @@
+<RCC>
+  <qresource prefix="icons">
+    <file>icons/Icon_COM.ico</file>
+    <file>icons/Icon_port.ico</file>
+    <file>icons/piwigo.svg</file>
+    <file>icons/pixiv.svg</file>
+    <file>icons/pkgsrc.svg</file>
+    <file>icons/plangrid.svg</file>
+    <file>icons/playerdotme.svg</file>
+    <file>icons/port_ico.ico</file>
+    <file>icons/talenthouse.svg</file>
+  </qresource>
+</RCC>

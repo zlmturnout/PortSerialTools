@@ -142,7 +142,7 @@ class Serial_COM_tool(QMainWindow, Ui_MainWindow):
 
     def __init__icons(self):
         icon_file=os.path.join(os.getcwd(),'UI\\icons\\pixiv.svg')
-        port_icon=SVG_ColorIcon(icon_file,img_size=QSize(60,60),color="#009DE0")
+        port_icon=SVG_ColorIcon(icon_file,img_size=QSize(60,60),color="#109DE0")
         self.search_port.setIcon(port_icon)
         self.search_port.setIconSize(QSize(30, 30))
 

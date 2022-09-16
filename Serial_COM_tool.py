@@ -1,9 +1,5 @@
-import re
-from this import s
-import time
-import sys, os
-from numpy import save
-
+import this,time,sys,os,re
+sys.path.append('.')
 from pyparsing import col
 from PySide6.QtCore import QTimer, Slot, QThread, Signal,QSize
 from PySide6 import QtCore, QtWidgets,QtSvg
@@ -12,6 +8,8 @@ from PySide6.QtGui import QIcon,QAction,QPixmap,QPainter,QColor
 from UI.UI_Serial_COM_tool import Ui_MainWindow
 import serial, binascii, datetime
 import serial.tools.list_ports
+from serial import SerialException
+from tools.RunQThread import RunQThread
 
 """
 serial information:
@@ -136,6 +134,8 @@ class Serial_COM_tool(QMainWindow, Ui_MainWindow):
 
     def ini(self):
         self.COM_port.currentTextChanged.connect(self.port_show)
+        self.read_flag = True # data recieve flag
+
         # set the timer to receive data
         self.timer = QTimer()
         self.timer.timeout.connect(self.data_receive)
@@ -225,7 +225,8 @@ class Serial_COM_tool(QMainWindow, Ui_MainWindow):
             try:
                 assert data, QMessageBox.warning(self, "Warning", "check input", QMessageBox.Yes | QMessageBox.No)
                 data = (data + '\r\n').encode('utf-8')
-                data_size = self.serial.write(data) - 2
+                #data_size = self.serial.write(data) - 2
+                self.send_data(data,timeout=5,wait_resp=True)
                 # QMessageBox.information(self, "information", "%d text data have been sent " % data_size,
                 #                         QMessageBox.Yes)
             except Exception as e:
@@ -247,17 +248,6 @@ class Serial_COM_tool(QMainWindow, Ui_MainWindow):
             print(f'input text={input_s}')
             hex_list = []
             hex_list=[i for i in [int(b, 16) for b in input_s.split(' ')]]
-            # print(f'get hex_test: {hex_test}')
-            # while input_s != '':
-            #     try:
-            #         num = int(input_s[0:2], 16)  # check if first 2 letter is in hex form
-            #         print(num)
-            #     except ValueError:
-            #         QMessageBox.warning(self, "Warning", "The input is not hex from,check!",
-            #                             QMessageBox.Yes | QMessageBox.No)
-            #         return None
-            #     input_s = input_s[2:].strip()
-            #     hex_list.append(num)
             byte_data = bytes(hex_list)
             print(f'get byte data:{byte_data}')
             print(f'get hex list:{hex_list}')
@@ -290,8 +280,9 @@ class Serial_COM_tool(QMainWindow, Ui_MainWindow):
         if self.serial.isOpen():
             hex_info, byte_info = self.get_hex_data()
             print(f'will send data: {byte_info}')
-            data_size = self.serial.write(byte_info)
-            print(data_size)
+            # data_size = self.serial.write(byte_info)
+            # print(data_size)
+            self.send_data(byte_info,timeout=5,wait_resp=True)
             QMessageBox.information(self, "information", "%d data have been sent " % data_size, QMessageBox.Yes)
 
         else:
@@ -326,6 +317,77 @@ class Serial_COM_tool(QMainWindow, Ui_MainWindow):
         self.bytesize.setEnabled(status)
         self.parity.setEnabled(status)
         self.stopbits.setEnabled(status)
+
+    def send_data(self,cmd,timeout=20,wait_resp=True):
+        """send data via serial port and wait for response in a QThread
+
+        Args:
+            cmd (_type_): byte data to send
+            timeout (int, optional): wait data timeout(s) Defaults to 20.
+            wait_resp (bool, optional): wait for data(True) or not (False) Defaults to True.
+        """
+        self.send_Qthread=RunQThread(self.write_cmd,cmd,timeout,wait_resp)
+        self.send_Qthread.run_sig.connect(self.data_received)
+        self.send_Qthread.start()
+    
+    @Slot(list)
+    def data_received(self,resp:list):
+        """recieved data and display in the box
+
+        Args:
+            resp (list):received data
+        """
+        rec_data=resp[0]
+        rec_data_size = len(rec_data)
+        time_str = ''
+        if self.time_stamp.isChecked():
+            time_str = '<' + get_datetime() + ':>'
+        if self.Hex_check.isChecked():
+            # out put in hex form
+            rec_str = ''
+            for i in range(rec_data_size):
+                rec_str = rec_str + '{:02X}'.format(rec_data[i]) + ' '
+            rec_str = time_str + rec_str + '\r\n'
+            self.recv_data.insertPlainText(rec_str)
+        else:
+            # out put tex,change bytes (b'123') to unicode str
+            rec_str = time_str + rec_data.decode('iso-8859-1')
+            print(rec_str)
+            self.recv_data.insertPlainText(rec_str)
+        # move the cursor to the end of the message
+        text_cursor = self.recv_data.textCursor()
+        text_cursor.movePosition(text_cursor.End)
+        self.recv_data.setTextCursor(text_cursor)
+
+    
+    def write_cmd(self, cmd, read_timeout=20,wait_resp=True):
+        """
+        write cmd via serial port
+        :param read_timeout:  read timeout default=20s
+        :param cmd: PumpStatus = [0x01, 0x03, 0x01, 0xCC, 0x00, 0x01, 0x45, 0xC9]
+        :return:
+        """
+        if self.serial.isOpen():
+            self.read_flag = True
+            rec_data = b''
+            try:
+                self.serial.write(bytes(cmd))
+            except SerialException as e:
+                print(e)
+            else:
+                time.sleep(0.1)
+                t0 = time.time()
+                if wait_resp:
+                    while self.read_flag and time.time() - t0 < read_timeout:
+                        wait_Num = self.serial.in_waiting
+                        if wait_Num > 0:
+                            rec_data += self.serial.read(wait_Num)
+                            # end read when get the stop bit '\n'
+                            if b'\n' in rec_data:
+                                self.read_flag = False
+                                print(f'data reciveied in {1000 * (time.time() - t0):.4f}ms')
+            finally:
+                return rec_data
 
     def OLDdata_receive(self):
         try:
